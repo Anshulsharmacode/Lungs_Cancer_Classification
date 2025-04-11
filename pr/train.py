@@ -35,7 +35,7 @@ print(f"Using device: {device}")
 BASE_DIR = 'data/Data'
 TRAIN_DIR = os.path.join(BASE_DIR, 'train')
 TEST_DIR = os.path.join(BASE_DIR, 'test')
-IMG_SIZE = 224
+IMG_SIZE = 224  # Keep this the same for compatibility
 BATCH_SIZE = 64
 NUM_WORKERS = 4
 
@@ -54,6 +54,7 @@ def extract_features(img_path):
     # 1. Basic statistical features
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
     hist = cv2.normalize(hist, hist).flatten()
+    features.extend(hist)  # Add histogram features
     
     # Statistical moments
     mean = np.mean(gray)
@@ -64,10 +65,10 @@ def extract_features(img_path):
     features.extend([mean, std, skewness, kurtosis])
     
     # 2. Haralick texture features (GLCM)
-    glcm = graycomatrix(gray, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], 
+    glcm = graycomatrix(gray, distances=[1, 2], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], 
                         symmetric=True, normed=True)
     
-    glcm_props = ['contrast', 'dissimilarity', 'homogeneity', 'energy', 'correlation']
+    glcm_props = ['contrast', 'dissimilarity', 'homogeneity', 'energy', 'correlation', 'ASM']
     for prop in glcm_props:
         features.extend(graycoprops(glcm, prop).flatten())
     
@@ -78,20 +79,28 @@ def extract_features(img_path):
     lbp_hist, _ = np.histogram(lbp, bins=n_points+2, range=(0, n_points+2), density=True)
     features.extend(lbp_hist)
     
+    # Add another LBP with different radius for multi-scale analysis
+    radius2 = 2
+    n_points2 = 8 * radius2
+    lbp2 = local_binary_pattern(gray, n_points2, radius2, method='uniform')
+    lbp_hist2, _ = np.histogram(lbp2, bins=n_points2+2, range=(0, n_points2+2), density=True)
+    features.extend(lbp_hist2)
+    
     # 4. Histogram of Oriented Gradients (HOG) features
-    # Use a smaller cell size for computational efficiency
     hog_features, _ = hog(gray, orientations=9, pixels_per_cell=(16, 16),
                        cells_per_block=(2, 2), visualize=True, feature_vector=True)
     
     # Take a subset of HOG features to reduce dimensionality
-    hog_features_subset = hog_features[::10]  # Take every 10th feature
+    hog_features_subset = hog_features[::5]  # Take every 5th feature instead of 10th
     features.extend(hog_features_subset)
     
     # 5. Shape and edge features
-    # Canny edge detection
-    edges = cv2.Canny(gray, 100, 200)
-    edge_density = np.sum(edges > 0) / (IMG_SIZE * IMG_SIZE)
-    features.append(edge_density)
+    # Canny edge detection with multiple thresholds
+    edges1 = cv2.Canny(gray, 50, 150)
+    edges2 = cv2.Canny(gray, 100, 200)
+    edge_density1 = np.sum(edges1 > 0) / (IMG_SIZE * IMG_SIZE)
+    edge_density2 = np.sum(edges2 > 0) / (IMG_SIZE * IMG_SIZE)
+    features.extend([edge_density1, edge_density2])
     
     # Add Fourier transform features for frequency analysis
     f_transform = np.fft.fft2(gray)
@@ -101,7 +110,14 @@ def extract_features(img_path):
     # Extract statistical features from the magnitude spectrum
     mag_mean = np.mean(magnitude_spectrum)
     mag_std = np.std(magnitude_spectrum)
-    features.extend([mag_mean, mag_std])
+    mag_median = np.median(magnitude_spectrum)
+    mag_max = np.max(magnitude_spectrum)
+    features.extend([mag_mean, mag_std, mag_median, mag_max])
+    
+    # Add color features from original image
+    for i in range(3):  # For each color channel
+        channel = img[:,:,i]
+        features.extend([np.mean(channel), np.std(channel), np.median(channel)])
     
     return np.array(features)
 
@@ -172,13 +188,13 @@ def train_cv_model():
     
     # Train multiple models for ensemble learning
     
-    # 1. Random Forest Classifier
+    # 1. Random Forest Classifier with improved parameters
     print("Training Random Forest classifier...")
     rf_clf = RandomForestClassifier(
-        n_estimators=200, 
-        max_depth=20,
-        min_samples_split=5,
-        min_samples_leaf=2,
+        n_estimators=300,  # Increased from 200
+        max_depth=25,      # Increased from 20
+        min_samples_split=4,
+        min_samples_leaf=1,
         max_features='sqrt',
         bootstrap=True,
         class_weight='balanced',
@@ -187,22 +203,22 @@ def train_cv_model():
     )
     rf_clf.fit(X_train_scaled, y_train)
     
-    # 2. Support Vector Machine
+    # 2. Support Vector Machine with improved parameters
     print("Training SVM classifier...")
     svm_clf = SVC(
-        C=10, 
+        C=20,  # Increased from 10
         kernel='rbf', 
-        gamma='scale',
+        gamma='auto',  # Changed from 'scale'
         probability=True,
         class_weight='balanced',
         random_state=42
     )
     svm_clf.fit(X_train_scaled, y_train)
     
-    # 3. K-Nearest Neighbors
+    # 3. K-Nearest Neighbors with improved parameters
     print("Training KNN classifier...")
     knn_clf = KNeighborsClassifier(
-        n_neighbors=7,
+        n_neighbors=5,  # Changed from 7
         weights='distance',
         algorithm='auto',
         p=2,
@@ -210,14 +226,30 @@ def train_cv_model():
     )
     knn_clf.fit(X_train_scaled, y_train)
     
-    # Create a voting classifier for ensemble prediction
+    # 4. Add Gradient Boosting Classifier
+    from sklearn.ensemble import GradientBoostingClassifier
+    print("Training Gradient Boosting classifier...")
+    gb_clf = GradientBoostingClassifier(
+        n_estimators=200,
+        learning_rate=0.1,
+        max_depth=5,
+        min_samples_split=4,
+        min_samples_leaf=2,
+        subsample=0.8,
+        random_state=42
+    )
+    gb_clf.fit(X_train_scaled, y_train)
+    
+    # Create a voting classifier for ensemble prediction with weights
     voting_clf = VotingClassifier(
         estimators=[
             ('rf', rf_clf),
             ('svm', svm_clf),
-            ('knn', knn_clf)
+            ('knn', knn_clf),
+            ('gb', gb_clf)
         ],
-        voting='soft'  # Use probability estimates for prediction
+        voting='soft',  # Use probability estimates for prediction
+        weights=[2, 1, 1, 2]  # Give more weight to RF and GB
     )
     
     print("Training ensemble model...")
@@ -239,6 +271,7 @@ def train_cv_model():
         'rf': rf_clf,
         'svm': svm_clf,
         'knn': knn_clf,
+        'gb': gb_clf,
         'scaler': scaler,
         'class_names': class_names
     }

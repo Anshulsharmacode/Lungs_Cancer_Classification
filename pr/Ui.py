@@ -12,6 +12,7 @@ from PIL import Image
 import io
 import tempfile
 from tqdm import tqdm
+from plot import visualize_tumor_detection, plot_visualizations, get_tumor_metrics
 
 # Set page configuration with dark theme
 st.set_page_config(
@@ -49,8 +50,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Define paths
-DATA_DIR = "/home/ubuntu/eureka/bugman/sandboxes/cd9e41b9-64d3-499e-9fa0-90d732cf6bf4/data"
-MODELS_DIR = "/home/ubuntu/eureka/bugman/sandboxes/cd9e41b9-64d3-499e-9fa0-90d732cf6bf4/snapshots/efa2404339822b29419feaf97e8dea033a156eb3/models"
+DATA_DIR = "data"
+MODELS_DIR = "models"
 MODEL_PATH = os.path.join(MODELS_DIR, "cv_ensemble_model.pkl")
 TEST_DIR = os.path.join(DATA_DIR, "Data/test")
 
@@ -344,6 +345,108 @@ def main():
                     st.success(f"Predicted Class: **{predicted_class}**")
                     st.info(f"Confidence: {confidence:.2f}")
                     
+                    # Display all probabilities
+                    st.subheader("Class Probabilities")
+                    
+                    # Create bar chart for probabilities
+                    probs_df = pd.DataFrame({
+                        'Class': list(all_probs.keys()),
+                        'Probability': list(all_probs.values())
+                    })
+                    probs_df = probs_df.sort_values('Probability', ascending=False)
+                    
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    bars = ax.bar(probs_df['Class'], probs_df['Probability'], color='skyblue')
+                    ax.set_xlabel('Class')
+                    ax.set_ylabel('Probability')
+                    ax.set_title('Class Probabilities')
+                    plt.xticks(rotation=45, ha='right')
+                    
+                    # Add value labels on top of bars
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                                f'{height:.3f}', ha='center', va='bottom')
+                    
+                    plt.tight_layout()
+                    # In Tab 1, after the existing probability plot, add these visualizations:
+                    st.pyplot(fig)
+                    
+                    # Add tumor visualizations
+                    st.subheader("Tumor Analysis Visualizations")
+                    visualizations = visualize_tumor_detection(image)
+                    viz_plot = plot_visualizations(visualizations)
+                    st.image(viz_plot, caption="Detailed Tumor Analysis", use_column_width=True)
+                    
+                    # Feature Importance Plot
+                    st.subheader("Feature Analysis")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # ROC Curve-like visualization
+                        fig_roc, ax_roc = plt.subplots(figsize=(8, 6))
+                        sorted_probs = sorted(all_probs.items(), key=lambda x: x[1], reverse=True)
+                        classes, values = zip(*sorted_probs)
+                        ax_roc.plot(range(len(classes)), values, marker='o')
+                        ax_roc.set_xticks(range(len(classes)))
+                        ax_roc.set_xticklabels(classes, rotation=45)
+                        ax_roc.set_title('Probability Distribution Curve')
+                        ax_roc.set_ylabel('Probability')
+                        ax_roc.grid(True)
+                        plt.tight_layout()
+                        st.pyplot(fig_roc)
+                    
+                    with col2:
+                        # Radar/Spider Plot
+                        fig_radar = plt.figure(figsize=(8, 6))
+                        ax_radar = fig_radar.add_subplot(111, projection='polar')
+                        angles = np.linspace(0, 2*np.pi, len(all_probs), endpoint=False)
+                        values = list(all_probs.values())
+                        values.append(values[0])  # Complete the circle
+                        angles = np.concatenate((angles, [angles[0]]))  # Complete the circle
+                        ax_radar.plot(angles, values)
+                        ax_radar.fill(angles, values, alpha=0.25)
+                        ax_radar.set_xticks(angles[:-1])
+                        ax_radar.set_xticklabels(list(all_probs.keys()))
+                        ax_radar.set_title('Radar Plot of Probabilities')
+                        plt.tight_layout()
+                        st.pyplot(fig_radar)
+                    
+                    # Confidence Gauge Chart
+                    st.subheader("Confidence Gauge")
+                    fig_gauge = plt.figure(figsize=(10, 6))
+                    ax_gauge = fig_gauge.add_subplot(111)
+                    colors = ['#ff9999', '#ffcc99', '#99ff99']
+                    ax_gauge.barh(0, confidence, color=colors[2] if confidence > 0.7 
+                                else colors[1] if confidence > 0.4 else colors[0])
+                    ax_gauge.barh(0, 1, color='#e0e0e0', alpha=0.3)
+                    ax_gauge.set_xlim(0, 1)
+                    ax_gauge.set_ylim(-0.5, 0.5)
+                    ax_gauge.set_xticks([0, 0.25, 0.5, 0.75, 1])
+                    ax_gauge.set_yticks([])
+                    ax_gauge.text(confidence/2, 0, f'{confidence:.2%}', 
+                                ha='center', va='center')
+                    ax_gauge.set_title('Confidence Level')
+                    plt.tight_layout()
+                    st.pyplot(fig_gauge)
+                    
+                    # Add metrics in a nice format
+                    st.subheader("Additional Metrics")
+                    metrics = get_tumor_metrics(image)
+                    
+                    metric_cols = st.columns(4)
+                    with metric_cols[0]:
+                        st.metric("Detected Regions", metrics['num_regions'])
+                    with metric_cols[1]:
+                        if metrics['regions']:
+                            st.metric("Avg Area", f"{np.mean([r['area'] for r in metrics['regions']]):.1f}")
+                    with metric_cols[2]:
+                        if metrics['regions']:
+                            st.metric("Avg Perimeter", f"{np.mean([r['perimeter'] for r in metrics['regions']]):.1f}")
+                    with metric_cols[3]:
+                        if metrics['regions']:
+                            st.metric("Avg Eccentricity", f"{np.mean([r['eccentricity'] for r in metrics['regions']]):.3f}")
+    
                     # Display all probabilities
                     st.subheader("Class Probabilities")
                     

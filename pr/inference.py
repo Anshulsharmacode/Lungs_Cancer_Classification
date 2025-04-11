@@ -132,16 +132,29 @@ def evaluate_test_set(test_dir, model, scaler, class_names):
     # Dictionary to store class-wise accuracy
     class_predictions = {class_name: {'correct': 0, 'total': 0} for class_name in class_names}
     
-    for class_idx, class_name in enumerate(class_names):
+    # First, verify which directories exist
+    existing_classes = []
+    for class_name in class_names:
         class_dir = os.path.join(test_dir, class_name)
-        if not os.path.exists(class_dir):
-            print(f"Warning: Directory {class_dir} not found. Skipping.")
-            continue
-            
-        # Get all image files in the class directory
+        if os.path.exists(class_dir):
+            existing_classes.append(class_name)
+    
+    if not existing_classes:
+        print("Error: No valid class directories found in the test directory.")
+        return None, None, None, None, None
+
+    print(f"\nFound {len(existing_classes)} valid classes for evaluation.")
+    
+    # Now process only existing directories
+    for class_idx, class_name in enumerate(existing_classes):
+        class_dir = os.path.join(test_dir, class_name)
         image_files = [f for f in os.listdir(class_dir) 
                       if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         
+        if not image_files:
+            print(f"Warning: No images found in {class_name} directory. Skipping.")
+            continue
+            
         print(f"Evaluating {len(image_files)} images from class: {class_name}")
         
         for img_file in tqdm(image_files):
@@ -155,21 +168,34 @@ def evaluate_test_set(test_dir, model, scaler, class_names):
                     class_predictions[class_name]['correct'] += 1
                 
                 # Track predictions for metrics
-                all_preds.append(class_names.index(predicted_class))
-                all_labels.append(class_idx)
+                # Skip predictions for classes not in test directory
+                if predicted_class in existing_classes:
+                    pred_idx = existing_classes.index(predicted_class)
+                    true_idx = existing_classes.index(class_name)
+                    all_preds.append(pred_idx)
+                    all_labels.append(true_idx)
+                else:
+                    print(f"\nWarning: Model predicted class '{predicted_class}' which is not present in test directory.")
+                    # Count as incorrect prediction but don't include in metrics
+                    continue
     
-    # Calculate overall accuracy
+    if not all_preds:
+        print("Error: No predictions were made. Check your test data.")
+        return None, None, None, None, None
+    
+    # Calculate metrics only for classes that have data
     overall_accuracy = accuracy_score(all_labels, all_preds)
     
     # Calculate class-wise accuracy
     class_accuracies = {}
-    for class_name, stats in class_predictions.items():
+    for class_name in class_names:
+        stats = class_predictions[class_name]
         if stats['total'] > 0:
             class_accuracies[class_name] = stats['correct'] / stats['total']
         else:
             class_accuracies[class_name] = 0
     
-    return overall_accuracy, class_accuracies, all_preds, all_labels
+    return overall_accuracy, class_accuracies, all_preds, all_labels, existing_classes
 
 def main():
     parser = argparse.ArgumentParser(description='CV-ML Model Inference for Lung Cancer Classification')
@@ -207,41 +233,34 @@ def main():
             print(f"{img_file}: {predicted_class} (confidence: {confidence:.2f})")
     
     # Evaluate on test set
-    elif args.evaluate:
+    elif args.evaluate or not (args.image or args.folder):
         print(f"Evaluating on test set: {args.test_dir}")
-        overall_accuracy, class_accuracies, all_preds, all_labels = evaluate_test_set(
-            args.test_dir, model, scaler, class_names
-        )
+        
+        if not os.path.exists(args.test_dir):
+            print(f"Error: Test directory '{args.test_dir}' does not exist.")
+            return
+            
+        results = evaluate_test_set(args.test_dir, model, scaler, class_names)
+        
+        if results is None:
+            return
+            
+        overall_accuracy, class_accuracies, all_preds, all_labels, existing_classes = results
         
         print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
         print("\nClass Accuracies:")
         for class_name, accuracy in class_accuracies.items():
             print(f"{class_name}: {accuracy:.4f}")
         
-        # Print classification report
-        print("\nClassification Report:")
-        print(classification_report(all_labels, all_preds, target_names=class_names))
-        
-        # Print confusion matrix
-        cm = confusion_matrix(all_labels, all_preds)
-        print("\nConfusion Matrix:")
-        print(cm)
-    
-    # Default: evaluate on test set
-    else:
-        print(f"Evaluating on test set: {args.test_dir}")
-        overall_accuracy, class_accuracies, all_preds, all_labels = evaluate_test_set(
-            args.test_dir, model, scaler, class_names
-        )
-        
-        print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
-        print("\nClass Accuracies:")
-        for class_name, accuracy in class_accuracies.items():
-            print(f"{class_name}: {accuracy:.4f}")
-        
-        # Print classification report
-        print("\nClassification Report:")
-        print(classification_report(all_labels, all_preds, target_names=class_names))
+        if len(existing_classes) > 0:
+            # Print classification report only for existing classes
+            print("\nClassification Report:")
+            print(classification_report(all_labels, all_preds, target_names=existing_classes))
+            
+            # Print confusion matrix
+            cm = confusion_matrix(all_labels, all_preds)
+            print("\nConfusion Matrix:")
+            print(cm)
 
 if __name__ == "__main__":
     main()
