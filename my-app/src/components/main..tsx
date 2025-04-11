@@ -13,7 +13,22 @@ interface PredictionResponse {
   error: string | null;
 }
 
+interface BatchPredictionResponse {
+  predictions: {
+    predicted_class: string;
+    confidence: number;
+    probabilities: Record<string, number>;
+  }[];
+  summary: {
+    total_images: number;
+    class_distribution: Record<string, { count: number; percentage: number }>;
+  };
+}
+
 export default function PredictPage() {
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [batchPredictions, setBatchPredictions] = useState<PredictionResponse[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,6 +81,52 @@ export default function PredictPage() {
     }
   };
 
+  const handleBatchPredict = async () => {
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    setLoading(true);
+    setError(null);
+    const formData = new FormData();
+    Array.from(selectedFiles).forEach((file) => {
+      formData.append('files', file);
+    });
+
+    try {
+      const response = await fetch('http://localhost:8000/predict/batch', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Batch prediction failed: ${response.status}`);
+      }
+
+      const data: BatchPredictionResponse = await response.json();
+      // Transform the data to match the expected format
+      const transformedPredictions = data.predictions.map(pred => ({
+        prediction: {
+          predicted_class: pred.predicted_class,
+          confidence: pred.confidence,
+          probabilities: pred.probabilities
+        },
+        plots: {} // Add empty plots since batch doesn't return plots
+      }));
+      
+      setBatchPredictions(transformedPredictions.map(pred => ({
+        ...pred,
+        error: null
+      })));
+    } catch (error) {
+      setError('Error processing batch. Please try again.');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 relative overflow-hidden">
       <div className="container mx-auto px-6 py-16 relative">
@@ -74,33 +135,57 @@ export default function PredictPage() {
             Lung Cancer Detection
             <span className="block mt-2 text-2xl text-gray-600 font-medium">Image Analysis</span>
           </h1>
-          <Link 
-            href="/" 
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-md"
-          >
-            Back to Home
-          </Link>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                setIsBatchMode(false);
+                setSelectedFiles(null);
+                setBatchPredictions([]);
+              }}
+              className={`px-6 py-3 rounded-lg transition-all duration-300 ${
+                !isBatchMode 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              Single Image
+            </button>
+            <button
+              onClick={() => {
+                setIsBatchMode(true);
+                setSelectedFile(null);
+                setPrediction(null);
+              }}
+              className={`px-6 py-3 rounded-lg transition-all duration-300 ${
+                isBatchMode 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              Batch Analysis
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Panel - Upload and Results */}
           <div className="space-y-6">
             <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-blue-100">
               <label className="block text-base font-semibold text-gray-800 mb-4">
-                Upload CT Scan Image
+                Upload {isBatchMode ? 'Multiple CT Scan Images' : 'CT Scan Image'}
               </label>
               <input
                 type="file"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                onChange={(e) => isBatchMode ? setSelectedFiles(e.target.files) : setSelectedFile(e.target.files?.[0] || null)}
                 accept="image/*"
+                multiple={isBatchMode}
                 className="block w-full text-sm text-gray-600 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-indigo-600 file:text-white hover:file:from-blue-700 hover:file:to-indigo-700"
               />
               <button
-                onClick={handleSinglePredict}
-                disabled={!selectedFile || loading}
+                onClick={isBatchMode ? handleBatchPredict : handleSinglePredict}
+                disabled={isBatchMode ? !selectedFiles?.length : !selectedFile || loading}
                 className="w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-300 shadow-md"
               >
-                {loading ? 'Processing...' : 'Analyze Image'}
+                {loading ? 'Processing...' : `Analyze ${isBatchMode ? 'Images' : 'Image'}`}
               </button>
             </div>
 
@@ -110,7 +195,60 @@ export default function PredictPage() {
               </div>
             )}
 
-            {prediction && prediction.prediction && (
+            {/* Batch Results Display */}
+            {isBatchMode && batchPredictions.length > 0 && (
+              <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-blue-100">
+                <h3 className="text-xl font-bold text-gray-800 mb-6">Batch Analysis Results</h3>
+                <div className="space-y-4">
+                  {batchPredictions.map((pred, index) => (
+                    <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                      <h4 className="font-semibold text-gray-800 mb-3">Image {index + 1}</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Predicted Class</span>
+                          <span className="font-semibold text-blue-600">
+                            {formatClassName(pred.prediction.predicted_class)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Confidence</span>
+                          <span className="font-semibold text-indigo-600">
+                            {(pred.prediction.confidence * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                        {pred.prediction.probabilities && (
+                          <div className="mt-2">
+                            <div className="space-y-2">
+                              {Object.entries(pred.prediction.probabilities)
+                                .sort(([, a], [, b]) => b - a)
+                                .map(([key, value]) => (
+                                  <div key={key} className="flex items-center space-x-2">
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2 rounded-full" 
+                                        style={{ width: `${value * 100}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-sm text-gray-600 min-w-[60px] text-right">
+                                      {(value * 100).toFixed(1)}%
+                                    </span>
+                                    <span className="text-sm font-medium text-gray-800">
+                                      {formatClassName(key)}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Single Image Results - existing code remains the same */}
+            {!isBatchMode && prediction && prediction.prediction && (
               <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-lg border border-blue-100">
                 <h3 className="text-xl font-bold text-gray-800 mb-6">Analysis Results</h3>
                 <div className="space-y-4">
