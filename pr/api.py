@@ -424,6 +424,7 @@ async def analyze_image(file: UploadFile = File(...)):
 # Remove the old /predict and /visualize routes
 
 @app.get("/")
+@app.head("/")
 async def root():
     """Root endpoint with API information"""
     return {
