@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 
 interface PredictionResponse {
@@ -49,31 +50,31 @@ interface ImageModalProps {
   onClose: () => void;
 }
 
-const colors = {
-  primary: {
-    light: '#EBF8FF',
-    medium: '#3B82F6',
-    dark: '#2563EB',
-  },
-  secondary: {
-    light: '#F0F9FF',
-    medium: '#0EA5E9',
-    dark: '#0284C7',
-  },
-  neutral: {
-    light: '#F8FAFC',
-    medium: '#64748B',
-    dark: '#1E293B',
-  },
-  success: {
-    light: '#F0FDF4',
-    medium: '#22C55E',
-  },
-  error: {
-    light: '#FEF2F2',
-    medium: '#EF4444',
-  }
-};
+// const colors = {
+//   primary: {
+//     light: '#EBF8FF',
+//     medium: '#3B82F6',
+//     dark: '#2563EB',
+//   },
+//   secondary: {
+//     light: '#F0F9FF',
+//     medium: '#0EA5E9',
+//     dark: '#0284C7',
+//   },
+//   neutral: {
+//     light: '#F8FAFC',
+//     medium: '#64748B',
+//     dark: '#1E293B',
+//   },
+//   success: {
+//     light: '#F0FDF4',
+//     medium: '#22C55E',
+//   },
+//   error: {
+//     light: '#FEF2F2',
+//     medium: '#EF4444',
+//   }
+// };
 
 const ImageModal: React.FC<ImageModalProps> = ({ imageUrl, title, onClose }) => {
   return (
@@ -92,9 +93,11 @@ const ImageModal: React.FC<ImageModalProps> = ({ imageUrl, title, onClose }) => 
             </button>
           </div>
           <div className="p-4 sm:p-6">
-            <img 
+            <Image 
               src={imageUrl} 
               alt={title}
+              width={800}
+              height={600}
               className="w-full h-auto max-h-[70vh] sm:max-h-[80vh] object-contain rounded-lg"
             />
           </div>
@@ -343,9 +346,11 @@ export default function PredictPage() {
                                hover:ring-2 hover:ring-blue-400 transition-all duration-300"
                       onClick={() => setSelectedImage({ url, title: `Original Image ${index + 1}` })}
                     >
-                      <img 
+                      <Image 
                         src={url} 
                         alt={`Preview ${index + 1}`}
+                        width={800}
+                        height={600}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <div className="bg-blue-900/80 py-1 px-2 absolute bottom-0 w-full">
@@ -439,9 +444,11 @@ export default function PredictPage() {
                 {selectedImage && (
                   <Card>
                     <div className="aspect-[16/9] w-full rounded-xl overflow-hidden">
-                      <img 
+                      <Image 
                         src={selectedImage.url}
                         alt={selectedImage.title}
+                        width={800}
+                        height={600}
                         className="w-full h-full object-contain"
                       />
                     </div>
@@ -463,9 +470,11 @@ export default function PredictPage() {
                             title: formatClassName(key)
                           })}
                         >
-                          <img 
+                          <Image 
                             src={`data:image/png;base64,${base64Data}`}
                             alt={formatClassName(key)}
+                            width={800}
+                            height={600}
                             className="w-full h-full object-cover"
                           />
                           <div className="bg-blue-900/80 py-1 sm:py-2 px-2 sm:px-3">
@@ -567,9 +576,11 @@ export default function PredictPage() {
                         className="aspect-square rounded-xl overflow-hidden cursor-pointer"
                         onClick={() => setSelectedImage({ url: imageURLs[index], title: `Image ${index + 1}` })}
                       >
-                        <img 
+                        <Image 
                           src={imageURLs[index]} 
                           alt={`Original ${index + 1}`}
+                          width={800}
+                          height={600}
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         />
                         <div className="bg-blue-900/80 py-1 px-2 absolute bottom-0 w-full">
