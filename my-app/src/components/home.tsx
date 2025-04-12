@@ -20,7 +20,7 @@ export default function HomePage() {
           <div className="space-y-10 relative">
             <div className="space-y-4">
               <div className="inline-block px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full mb-4">
-                <span className="text-xs font-medium tracking-wider">MAJOR PROJECT 2023-24</span>
+                <span className="text-xs font-medium tracking-wider">MAJOR PROJECT 2024-25</span>
               </div>
               <h1 className="text-4xl font-bold text-gray-800 leading-tight">
                 Lung Cancer

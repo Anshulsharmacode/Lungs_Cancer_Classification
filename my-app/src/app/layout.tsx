@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Lora } from "next/font/google";
 import "./globals.css";
+import Navbar from "@/components/navbar";
 
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const lora = Lora({
+  variable: "--font-Lora",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  
 });
 
 export const metadata: Metadata = {
@@ -26,15 +23,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${lora.variable} antialiased`}
       >
-        
-        <div className="pt-16"> {/* Add padding to top to accommodate fixed navbar */}
+        <Navbar/>
+        <div > {/* Add padding to top to accommodate fixed navbar */}
           {children}
         </div>
         
         {/* Footer */}
-        <footer className="bg-gray-50 border-t border-gray-200 py-8 mt-12">
+        <footer className="bg-gray-50 border-t border-gray-200 py-8 ">
           <div className="container mx-auto px-4">
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="flex items-center space-x-2 mb-4 md:mb-0">
