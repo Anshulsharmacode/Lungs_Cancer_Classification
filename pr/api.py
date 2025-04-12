@@ -17,6 +17,10 @@ from plot import visualize_tumor_detection, plot_visualizations, get_tumor_metri
 # Add this import and set backend at the very top of the file, before other imports
 import matplotlib
 matplotlib.use('Agg')
+from scipy import stats
+from skimage.filters import threshold_otsu
+from skimage.measure import regionprops_table
+import pandas as pd
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -28,7 +32,7 @@ app = FastAPI(
 # Add CORS middleware with specific frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_origins=["http://localhost:3000"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -217,9 +221,11 @@ def encode_plot_to_base64(fig):
     plt.close(fig)
     return plot_base64
 
-@app.post("/visualize")
-async def get_visualizations(file: UploadFile = File(...)):
-    """Generate visualizations using plot.py functions"""
+@app.post("/analyze")
+async def analyze_image(file: UploadFile = File(...)):
+    """
+    Comprehensive endpoint for image analysis, predictions, and visualizations
+    """
     try:
         # Read and validate image
         contents = await file.read()
@@ -229,18 +235,24 @@ async def get_visualizations(file: UploadFile = File(...)):
         if image is None:
             raise HTTPException(status_code=400, detail="Invalid image file")
         
+        # Initialize response structure
         response = {
+            "prediction": None,
             "visualizations": {},
             "metrics": None,
+            "statistical_analysis": {},
             "error": None
         }
 
-        # 1. Get tumor visualizations using plot.py functions
+        # 1. Get prediction
+        prediction_result = predict_image(image)
+        response["prediction"] = prediction_result
+
+        # 2. Generate tumor visualizations
         try:
-            # Get all visualizations from plot.py
             tumor_viz = visualize_tumor_detection(image)
             
-            # Encode each visualization
+            # Process each visualization
             for key, img in tumor_viz.items():
                 plt.figure(figsize=(8, 8))
                 if isinstance(img, np.ndarray):
@@ -254,47 +266,163 @@ async def get_visualizations(file: UploadFile = File(...)):
                 response["visualizations"][key] = encode_plot_to_base64(plt.gcf())
                 plt.close('all')
 
-            # Get combined visualization plot
+            # Add combined visualization
             combined_viz = plot_visualizations(tumor_viz)
             response["visualizations"]["combined"] = base64.b64encode(combined_viz.getvalue()).decode()
-            
+
         except Exception as e:
             response["error"] = f"Visualization error: {str(e)}"
 
-        # 2. Get tumor metrics from plot.py
+        # 3. Calculate and add detailed image statistics
+        try:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # Basic statistics
+            response["statistical_analysis"] = {
+                "intensity": {
+                    "mean": float(np.mean(gray)),
+                    "median": float(np.median(gray)),
+                    "std": float(np.std(gray)),
+                    "min": float(np.min(gray)),
+                    "max": float(np.max(gray)),
+                    "skewness": float(stats.skew(gray.flatten())),
+                    "kurtosis": float(stats.kurtosis(gray.flatten())),
+                }
+            }
+
+            # Add histogram visualization
+            plt.figure(figsize=(10, 6))
+            plt.hist(gray.ravel(), bins=256, range=[0, 256], density=True, color='skyblue')
+            plt.title('Intensity Histogram')
+            plt.xlabel('Pixel Intensity')
+            plt.ylabel('Frequency')
+            plt.tight_layout()
+            response["visualizations"]["intensity_histogram"] = encode_plot_to_base64(plt.gcf())
+            plt.close('all')
+
+            # Add intensity distribution plot
+            plt.figure(figsize=(10, 6))
+            sns.kdeplot(data=gray.ravel(), color='blue', fill=True)
+            plt.title('Intensity Distribution')
+            plt.xlabel('Pixel Intensity')
+            plt.ylabel('Density')
+            plt.tight_layout()
+            response["visualizations"]["intensity_distribution"] = encode_plot_to_base64(plt.gcf())
+            plt.close('all')
+
+        except Exception as e:
+            response["error"] = f"{response.get('error', '')} Statistical analysis error: {str(e)}"
+
+        # 4. Add tumor metrics and analysis
         try:
             metrics = get_tumor_metrics(image)
+            
+            # Basic tumor metrics
             response["metrics"] = {
-                "num_regions": metrics['num_regions'],
-                "regions": [{
-                    "area": region['area'],
-                    "perimeter": region['perimeter'],
-                    "eccentricity": region['eccentricity']
-                } for region in metrics['regions']],
-                "statistics": {
-                    "area": {
-                        "mean": float(np.mean([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0,
-                        "std": float(np.std([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0
-                    },
-                    "perimeter": {
-                        "mean": float(np.mean([r['perimeter'] for r in metrics['regions']])) if metrics['regions'] else 0,
-                        "std": float(np.std([r['perimeter'] for r in metrics['regions']])) if metrics['regions'] else 0
-                    },
-                    "eccentricity": {
-                        "mean": float(np.mean([r['eccentricity'] for r in metrics['regions']])) if metrics['regions'] else 0,
-                        "std": float(np.std([r['eccentricity'] for r in metrics['regions']])) if metrics['regions'] else 0
+                "tumor": {
+                    "num_regions": metrics['num_regions'],
+                    "regions": metrics['regions'],
+                    "statistics": {
+                        "area": {
+                            "mean": float(np.mean([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "median": float(np.median([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "std": float(np.std([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "min": float(np.min([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "max": float(np.max([r['area'] for r in metrics['regions']])) if metrics['regions'] else 0
+                        },
+                        "perimeter": {
+                            "mean": float(np.mean([r['perimeter'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "median": float(np.median([r['perimeter'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "std": float(np.std([r['perimeter'] for r in metrics['regions']])) if metrics['regions'] else 0
+                        },
+                        "eccentricity": {
+                            "mean": float(np.mean([r['eccentricity'] for r in metrics['regions']])) if metrics['regions'] else 0,
+                            "std": float(np.std([r['eccentricity'] for r in metrics['regions']])) if metrics['regions'] else 0
+                        }
                     }
                 }
             }
+
+            # Add region property distributions
+            if metrics['regions']:
+                fig, axes = plt.subplots(2, 2, figsize=(15, 15))
+                
+                # Area distribution
+                sns.histplot(data=[r['area'] for r in metrics['regions']], ax=axes[0,0], kde=True)
+                axes[0,0].set_title('Area Distribution')
+                
+                # Perimeter distribution
+                sns.histplot(data=[r['perimeter'] for r in metrics['regions']], ax=axes[0,1], kde=True)
+                axes[0,1].set_title('Perimeter Distribution')
+                
+                # Eccentricity distribution
+                sns.histplot(data=[r['eccentricity'] for r in metrics['regions']], ax=axes[1,0], kde=True)
+                axes[1,0].set_title('Eccentricity Distribution')
+                
+                # Scatter plot of area vs perimeter
+                axes[1,1].scatter([r['area'] for r in metrics['regions']], 
+                                [r['perimeter'] for r in metrics['regions']])
+                axes[1,1].set_title('Area vs Perimeter')
+                axes[1,1].set_xlabel('Area')
+                axes[1,1].set_ylabel('Perimeter')
+                
+                plt.tight_layout()
+                response["visualizations"]["region_properties"] = encode_plot_to_base64(plt.gcf())
+                plt.close('all')
+
+            # Add correlation heatmap
+            if metrics['regions']:
+                data = pd.DataFrame([{
+                    'area': r['area'],
+                    'perimeter': r['perimeter'],
+                    'eccentricity': r['eccentricity']
+                } for r in metrics['regions']])
+                
+                plt.figure(figsize=(8, 6))
+                sns.heatmap(data.corr(), annot=True, cmap='coolwarm')
+                plt.title('Feature Correlation Heatmap')
+                plt.tight_layout()
+                response["visualizations"]["correlation_heatmap"] = encode_plot_to_base64(plt.gcf())
+                plt.close('all')
+
         except Exception as e:
             response["error"] = f"{response.get('error', '')} Metrics error: {str(e)}"
+
+        # 5. Add texture analysis
+        try:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # GLCM features
+            glcm = graycomatrix(gray, distances=[1], angles=[0, np.pi/4, np.pi/2, 3*np.pi/4], 
+                               symmetric=True, normed=True)
+            
+            glcm_props = ['contrast', 'dissimilarity', 'homogeneity', 'energy', 'correlation']
+            texture_features = {}
+            
+            for prop in glcm_props:
+                texture_features[prop] = float(graycoprops(glcm, prop)[0, 0])
+            
+            response["statistical_analysis"]["texture"] = texture_features
+
+            # Visualize texture features
+            plt.figure(figsize=(10, 6))
+            plt.bar(texture_features.keys(), texture_features.values(), color='skyblue')
+            plt.title('Texture Features')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            response["visualizations"]["texture_features"] = encode_plot_to_base64(plt.gcf())
+            plt.close('all')
+
+        except Exception as e:
+            response["error"] = f"{response.get('error', '')} Texture analysis error: {str(e)}"
 
         return JSONResponse(content=response)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Remove other visualization routes
+# Remove the old /predict and /visualize routes
+
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
@@ -305,67 +433,7 @@ async def root():
         "available_classes": class_names
     }
 
-@app.post("/predict", response_model=None)  # Remove response_model to allow custom response
-async def predict_single(file: UploadFile = File(...)):
-    """Predict a single image with visualizations"""
-    try:
-        # Read and decode image
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if image is None:
-            raise HTTPException(status_code=400, detail="Invalid image file")
-        
-        # Get prediction
-        prediction_result = predict_image(image)
-        
-        # Get visualizations
-        response = {
-            "prediction": prediction_result,
-            "plots": {},
-            "error": None
-        }
-
-        try:
-            # Get tumor visualizations
-            tumor_viz = visualize_tumor_detection(image)
-            
-            # Encode each visualization
-            for key, img in tumor_viz.items():
-                plt.figure(figsize=(8, 8))
-                if isinstance(img, np.ndarray):
-                    if len(img.shape) == 2 or (len(img.shape) == 3 and img.shape[2] == 1):
-                        plt.imshow(img, cmap='gray')
-                    else:
-                        plt.imshow(img)
-                plt.title(key.replace('_', ' ').title())
-                plt.axis('off')
-                plt.tight_layout()
-                response["plots"][key] = encode_plot_to_base64(plt.gcf())
-                plt.close('all')
-
-            # Add probability visualization
-            plt.figure(figsize=(10, 6))
-            probs = prediction_result["probabilities"]
-            plt.bar(probs.keys(), probs.values(), color='skyblue')
-            plt.title('Class Probabilities')
-            plt.xlabel('Classes')
-            plt.ylabel('Probability')
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            response["plots"]["probability_distribution"] = encode_plot_to_base64(plt.gcf())
-            plt.close('all')
-
-        except Exception as e:
-            response["error"] = f"Visualization error: {str(e)}"
-
-        return JSONResponse(content=response)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/predict/batch", response_model=BatchPredictionResponse)
+@app.post("/analyze/batch", response_model=BatchPredictionResponse)
 async def predict_batch(files: List[UploadFile] = File(...)):
     """Predict multiple images"""
     try:
