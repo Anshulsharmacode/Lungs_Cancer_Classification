@@ -1,9 +1,10 @@
 import React from 'react';
 import Link from 'next/link';
+import { theme } from '@/components/theme';
 
 const Navbar = () => {
   return (
-    <header className="bg-blue-600 text-white py-4">
+    <header style={{ backgroundColor: theme.colors.primary.main }} className="text-white py-4">
       <div className="container mx-auto flex justify-between items-center">
         <h1 className="text-2xl font-bold">Major Project 2024-25</h1>
         <nav>

@@ -1,6 +1,7 @@
 "use client"
 import { FaArrowRight, FaLungsVirus, FaDna, FaChartLine, FaHeartbeat, FaStethoscope } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
+import { theme } from '@/components/theme';
 
 export default function HomePage() {
   const router = useRouter();
@@ -10,16 +11,18 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 relative overflow-hidden">
-      <div className="absolute -right-40 -top-40 w-96 h-96 bg-blue-200 opacity-10 rounded-full blur-3xl" />
-      <div className="absolute -left-40 -bottom-40 w-96 h-96 bg-indigo-200 opacity-10 rounded-full blur-3xl" />
+    <div className={`min-h-screen bg-gradient-to-br ${theme.gradients.background} relative overflow-hidden`}>
+      <div className="absolute -right-40 -top-40 w-96 h-96" 
+           style={{ backgroundColor: theme.colors.primary.light, opacity: 0.1 }} />
+      <div className="absolute -left-40 -bottom-40 w-96 h-96" 
+           style={{ backgroundColor: theme.colors.secondary.light, opacity: 0.1 }} />
 
       <div className="container mx-auto px-6 py-16 relative">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Content Section */}
           <div className="space-y-10 relative">
             <div className="space-y-4">
-              <div className="inline-block px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full mb-4">
+              <div className={`inline-block px-4 py-2 bg-gradient-to-r ${theme.gradients.primary} text-white rounded-full mb-4`}>
                 <span className="text-xs font-medium tracking-wider">MAJOR PROJECT 2024-25</span>
               </div>
               <h1 className="text-4xl font-bold text-gray-800 leading-tight">
@@ -116,4 +119,4 @@ export default function HomePage() {
       </div>
     </div>
   );
-}
+};

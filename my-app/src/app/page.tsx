@@ -6,7 +6,6 @@ function page() {
   return (
   
     <>
-     
      <HomePage/>
     </>
   )

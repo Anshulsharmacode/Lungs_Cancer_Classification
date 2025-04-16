@@ -14,19 +14,18 @@ import seaborn as sns
 import base64
 from io import BytesIO
 from plot import visualize_tumor_detection, plot_visualizations, get_tumor_metrics
-# Add this import and set backend at the very top of the file, before other imports
-import matplotlib
+
+import matplotlib # type: ignore
 matplotlib.use('Agg')
 from scipy import stats
 from skimage.filters import threshold_otsu
-from skimage.measure import regionprops_table
+from skimage.measure import regionprops_table # type: ignore
 import pandas as pd
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Lung Cancer Classification API",
     description="API for lung cancer classification using computer vision",
-    version="1.0.0"
 )
 
 # Add CORS middleware with specific frontend origin
@@ -481,6 +480,7 @@ async def model_info():
     return {
         "model_type": str(type(model).__name__),
         "number_of_classes": len(class_names),
+        
         "classes": class_names,
         "model_path": MODEL_PATH
     }

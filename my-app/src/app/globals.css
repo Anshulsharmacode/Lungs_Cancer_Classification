@@ -4,6 +4,9 @@
 body {
   font-family: 'Lora', serif;
 }
+/* :root {
+  --ww: #2563eb; /* Define the color variable 'ww' */
+
 
 :root {
   --background: #ffffff;

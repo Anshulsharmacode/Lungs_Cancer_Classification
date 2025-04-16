@@ -1,5 +1,6 @@
 'use client';
 
+import { theme } from '@/components/theme';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
@@ -78,23 +79,32 @@ interface ImageModalProps {
 
 const ImageModal: React.FC<ImageModalProps> = ({ imageUrl, title, onClose }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+    <div 
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4" 
+      onClick={onClose}
+    >
       <div className="relative w-full max-w-5xl" onClick={e => e.stopPropagation()}>
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
-          <div className="p-3 sm:p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-primary-light to-secondary-light">
-            <h3 className="text-lg sm:text-xl font-semibold text-neutral-dark truncate">{title}</h3>
-            <button 
+        <div 
+          style={{ backgroundColor: theme.colors.background.white, borderColor: theme.colors.border.primary }}
+          className="rounded-2xl shadow-2xl overflow-hidden border"
+        >
+          <div className={`p-3 sm:p-4 border-b flex justify-between items-center bg-gradient-to-r ${theme.gradients.primary}`}>
+            <h3 style={{ color: theme.colors.text.white }} className="text-lg sm:text-xl font-semibold truncate">
+              {title}
+            </h3>
+            <button
               onClick={onClose}
               className="p-1.5 sm:p-2 hover:bg-white/50 rounded-full transition-colors"
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke={theme.colors.text.white} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
           <div className="p-4 sm:p-6">
-            <Image 
-              src={imageUrl} 
+            <Image
+              src={imageUrl}
               alt={title}
               width={800}
               height={600}
@@ -113,7 +123,13 @@ interface CardProps {
 }
 
 const Card: React.FC<CardProps> = ({ children, className = '' }) => (
-  <div className={`bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 ${className}`}>
+  <div 
+    style={{ 
+      backgroundColor: `${theme.colors.background.white}95`,
+      borderColor: theme.colors.border.primary 
+    }}
+    className={`backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-lg hover:shadow-xl transition-all duration-300 ${className}`}
+  >
     {children}
   </div>
 );
@@ -125,9 +141,16 @@ interface MetricItemProps {
 }
 
 const MetricItem: React.FC<MetricItemProps> = ({ label, value, unit = '' }) => (
-  <div className="flex justify-between items-center p-2 sm:p-3 rounded-lg bg-blue-50/50 hover:bg-blue-100/50 transition-colors">
-    <span className="text-sm sm:text-base text-neutral-600">{label}</span>
-    <span className="font-semibold text-blue-600 text-sm sm:text-base">
+  <div 
+    style={{ 
+      backgroundColor: `${theme.colors.primary.light}10`
+    }}
+    className="flex justify-between items-center p-2 sm:p-3 rounded-lg hover:bg-blue-100/50 transition-colors"
+  >
+    <span style={{ color: theme.colors.text.secondary }} className="text-sm sm:text-base">
+      {label}
+    </span>
+    <span style={{ color: theme.colors.primary.main }} className="font-semibold text-sm sm:text-base">
       {value}{unit}
     </span>
   </div>
@@ -146,7 +169,7 @@ export default function PredictPage() {
 
   const simplifiedNames: { [key: string]: string } = {
     "Large.cell.carcinoma Left.hilum T2 N2 M0 IIIa": "Large Cell Carcinoma",
-    "Squamous.cell.carcinoma Left.hilum T1 N2 M0 IIIa": "Squamous Cell Carcinoma", 
+    "Squamous.cell.carcinoma Left.hilum T1 N2 M0 IIIa": "Squamous Cell Carcinoma",
     "Adenocarcinoma Left.lower.lobe T2 N0 M0 Ib": "Adenocarcinoma",
     "Malignant cases": "Malignant",
     "Bengin cases": "Benign",
@@ -155,7 +178,22 @@ export default function PredictPage() {
 
   const formatClassName = (className: string | undefined) => {
     if (!className) return '';
-    return simplifiedNames[className] || className;
+    if (className.toLowerCase().includes('adenocarcinoma')) {
+      return "Adenocarcinoma"
+    } else if (className.toLowerCase().includes('large')) {
+      return "Large Cell"
+    } else if (className.toLowerCase().includes('squamous')) {
+      return "Squamous"
+    } else if (className.toLowerCase().includes('bengin')) {
+      return "Bengin"
+    }
+    else if (className.toLowerCase().includes('malignant')) {
+      return "Malignant"
+    }
+    else {
+      return "normal"
+    }
+    
   };
 
   const handleSinglePredict = async () => {
@@ -167,7 +205,7 @@ export default function PredictPage() {
     formData.append('file', selectedFile);
 
     try {
-      const response = await fetch('https://final-major-1.onrender.com/analyze', {
+      const response = await fetch('http://localhost:8000/analyze', {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -176,11 +214,11 @@ export default function PredictPage() {
         },
         mode: 'cors'
       });
-      
+
       if (!response.ok) {
         throw new Error(`Prediction failed: ${response.status}`);
       }
-      
+
       const data = await response.json();
       console.log('Received data:', data);
       setPrediction(data);
@@ -203,7 +241,7 @@ export default function PredictPage() {
     });
 
     try {
-      const response = await fetch('https://final-major-1.onrender.com/analyze/batch', {
+      const response = await fetch('http://localhost:8000/analyze/batch', {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -216,7 +254,7 @@ export default function PredictPage() {
       }
 
       const data: BatchPredictionResponse = await response.json();
-      
+
       const transformedPredictions = data.predictions.map(pred => ({
         prediction: {
           predicted_class: pred.predicted_class,
@@ -273,17 +311,25 @@ export default function PredictPage() {
   }, [imageURLs]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
+    <main 
+      style={{ 
+        background: `linear-gradient(to bottom right, ${theme.colors.background.light}, ${theme.colors.background.white})`
+      }}
+      className="min-h-screen"
+    >
       <div className="flex flex-col lg:flex-row h-auto w-auto">
         {/* Left Panel - File Upload & Controls */}
-        <div className="w-full lg:w-1/3 xl:w-1/4 h-auto lg:h-full border-b lg:border-b-0 lg:border-r border-blue-100 overflow-y-auto p-4">
+        <div 
+          style={{ borderColor: theme.colors.border.primary }}
+          className="w-full lg:w-1/3 xl:w-1/4 h-auto lg:h-full border-b lg:border-b-0 lg:border-r overflow-y-auto p-4"
+        >
           <div className="space-y-4 sm:space-y-6">
             <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-blue-900">
+              <h1 style={{ color: theme.colors.text.primary }} className="text-2xl sm:text-3xl font-bold">
                 Lung Cancer Detection
               </h1>
-              <p className="text-base sm:text-lg text-blue-600">
-                Advanced Image Analysis System
+              <p style={{ color: theme.colors.primary.main }} className="text-base sm:text-lg">
+                 Image Analysis System
               </p>
             </div>
 
@@ -295,11 +341,14 @@ export default function PredictPage() {
                   setSelectedFiles(null);
                   setBatchPredictions([]);
                 }}
-                className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-300 ${
-                  !isBatchMode 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                    : 'bg-white text-blue-600 hover:bg-blue-50 border border-blue-200'
-                }`}
+                className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-300`}
+                style={{
+                  background: !isBatchMode 
+                    ? `linear-gradient(to right, ${theme.colors.primary.main}, ${theme.colors.secondary.main})`
+                    : theme.colors.background.white,
+                  color: !isBatchMode ? theme.colors.text.white : theme.colors.primary.main,
+                  border: !isBatchMode ? 'none' : `1px solid ${theme.colors.border.primary}`
+                }}
               >
                 Single Image
               </button>
@@ -309,11 +358,14 @@ export default function PredictPage() {
                   setSelectedFile(null);
                   setPrediction(null);
                 }}
-                className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-300 ${
-                  isBatchMode 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                    : 'bg-white text-blue-600 hover:bg-blue-50 border border-blue-200'
-                }`}
+                className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base transition-all duration-300`}
+                style={{
+                  background: isBatchMode 
+                    ? `linear-gradient(to right, ${theme.colors.primary.main}, ${theme.colors.secondary.main})`
+                    : theme.colors.background.white,
+                  color: isBatchMode ? theme.colors.text.white : theme.colors.primary.main,
+                  border: isBatchMode ? 'none' : `1px solid ${theme.colors.border.primary}`
+                }}
               >
                 Batch Analysis
               </button>
@@ -321,7 +373,7 @@ export default function PredictPage() {
 
             {/* File Upload Card */}
             <Card>
-              <label className="block text-base sm:text-lg font-semibold text-blue-900 mb-4">
+              <label className="block text-base sm:text-lg font-semibold mb-4" style={{ color: theme.colors.text.primary }}>
                 Upload {isBatchMode ? 'Multiple CT Scan Images' : 'CT Scan Image'}
               </label>
               <input
@@ -329,25 +381,25 @@ export default function PredictPage() {
                 onChange={(e) => handleFileSelect(e.target.files)}
                 accept="image/*"
                 multiple={isBatchMode}
-                className="block w-full text-xs sm:text-sm text-blue-600 file:mr-4 file:py-2 file:px-4 
+                className="block w-full text-xs sm:text-sm file:mr-4 file:py-2 file:px-4 
                          sm:file:py-3 sm:file:px-6 file:rounded-full file:border-0 
                          file:text-sm file:font-semibold file:bg-gradient-to-r 
                          file:from-blue-500 file:to-blue-600 file:text-white 
                          hover:file:bg-blue-600 file:transition-colors cursor-pointer"
               />
-              
+
               {/* Preview Grid */}
               {imageURLs.length > 0 && (
                 <div className="mt-4 sm:mt-6 grid grid-cols-2 gap-2 sm:gap-3">
                   {imageURLs.map((url, index) => (
-                    <div 
+                    <div
                       key={index}
                       className="relative aspect-square rounded-xl overflow-hidden cursor-pointer 
                                hover:ring-2 hover:ring-blue-400 transition-all duration-300"
                       onClick={() => setSelectedImage({ url, title: `Original Image ${index + 1}` })}
                     >
-                      <Image 
-                        src={url} 
+                      <Image
+                        src={url}
                         alt={`Preview ${index + 1}`}
                         width={800}
                         height={600}
@@ -377,8 +429,8 @@ export default function PredictPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                     Processing...
                   </span>
@@ -406,7 +458,7 @@ export default function PredictPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg sm:text-xl font-bold text-blue-900">Analysis Results</h3>
                   <span className="text-xs sm:text-sm bg-blue-100 text-blue-800 px-2 sm:px-3 py-1 rounded-full">
-                    {(prediction.prediction.predicted_class)}
+                    {(formatClassName(prediction.prediction.predicted_class))}
                     ({(prediction.prediction.confidence * 100).toFixed(1)}%)
                   </span>
                 </div>
@@ -444,7 +496,7 @@ export default function PredictPage() {
                 {selectedImage && (
                   <Card>
                     <div className="aspect-[16/9] w-full rounded-xl overflow-hidden">
-                      <Image 
+                      <Image
                         src={selectedImage.url}
                         alt={selectedImage.title}
                         width={800}
@@ -461,7 +513,7 @@ export default function PredictPage() {
                     <h4 className="font-semibold text-blue-900 mb-4">Analysis Visualizations</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {Object.entries(prediction.visualizations).map(([key, base64Data]) => (
-                        <div 
+                        <div
                           key={key}
                           className="aspect-[4/3] rounded-xl overflow-hidden cursor-pointer 
                                    hover:ring-2 hover:ring-blue-400 transition-all duration-300"
@@ -470,7 +522,7 @@ export default function PredictPage() {
                             title: formatClassName(key)
                           })}
                         >
-                          <Image 
+                          <Image
                             src={`data:image/png;base64,${base64Data}`}
                             alt={formatClassName(key)}
                             width={800}
@@ -495,23 +547,23 @@ export default function PredictPage() {
                     <Card>
                       <h4 className="font-semibold text-blue-900 mb-3">Tumor Metrics</h4>
                       <div className="space-y-2">
-                        <MetricItem 
+                        <MetricItem
                           label="Number of Regions"
                           value={prediction.metrics.tumor.num_regions}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Average Area"
                           value={prediction.metrics.tumor.statistics.area.mean.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Average Perimeter"
                           value={prediction.metrics.tumor.statistics.perimeter.mean.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Area Std Dev"
                           value={prediction.metrics.tumor.statistics.area.std.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Perimeter Std Dev"
                           value={prediction.metrics.tumor.statistics.perimeter.std.toFixed(2)}
                         />
@@ -524,19 +576,19 @@ export default function PredictPage() {
                     <Card>
                       <h4 className="font-semibold text-blue-900 mb-3">Image Statistics</h4>
                       <div className="space-y-2">
-                        <MetricItem 
+                        <MetricItem
                           label="Mean Intensity"
                           value={prediction.statistical_analysis.intensity.mean.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Standard Deviation"
                           value={prediction.statistical_analysis.intensity.std.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Skewness"
                           value={prediction.statistical_analysis.intensity.skewness.toFixed(2)}
                         />
-                        <MetricItem 
+                        <MetricItem
                           label="Kurtosis"
                           value={prediction.statistical_analysis.intensity.kurtosis.toFixed(2)}
                         />
@@ -550,7 +602,7 @@ export default function PredictPage() {
                       <h4 className="font-semibold text-blue-900 mb-3">Texture Analysis</h4>
                       <div className="h-[180px] overflow-y-auto pr-2 space-y-2">
                         {Object.entries(prediction.statistical_analysis.texture).map(([key, value]) => (
-                          <MetricItem 
+                          <MetricItem
                             key={key}
                             label={formatClassName(key)}
                             value={typeof value === 'number' ? value.toFixed(5) : value}
@@ -572,12 +624,12 @@ export default function PredictPage() {
                 {batchPredictions.map((pred, index) => (
                   <div key={index} className="grid grid-cols-1 gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
                     {imageURLs[index] && (
-                      <div 
+                      <div
                         className="aspect-square rounded-xl overflow-hidden cursor-pointer"
                         onClick={() => setSelectedImage({ url: imageURLs[index], title: `Image ${index + 1}` })}
                       >
-                        <Image 
-                          src={imageURLs[index]} 
+                        <Image
+                          src={imageURLs[index]}
                           alt={`Original ${index + 1}`}
                           width={800}
                           height={600}
@@ -604,13 +656,12 @@ export default function PredictPage() {
                                   </div>
                                   <div className="flex-1 h-5 sm:h-6 relative">
                                     <div className="absolute inset-y-0 w-full bg-blue-50 rounded-full" />
-                                    <div 
+                                    <div
                                       className="absolute inset-y-0 rounded-full bg-blue-500"
                                       style={{ width: `${value * 100}%` }}
                                     />
-                                    <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-medium ${
-                                      value > 0.4 ? 'text-white' : 'text-blue-800'
-                                    }`}>
+                                    <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-medium ${value > 0.4 ? 'text-white' : 'text-blue-800'
+                                      }`}>
                                       {(value * 100).toFixed(1)}%
                                     </span>
                                   </div>
@@ -630,7 +681,7 @@ export default function PredictPage() {
 
       {/* Image Modal */}
       {selectedImage && (
-        <ImageModal 
+        <ImageModal
           imageUrl={selectedImage.url}
           title={selectedImage.title}
           onClose={() => setSelectedImage(null)}
