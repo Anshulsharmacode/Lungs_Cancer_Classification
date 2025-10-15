@@ -203,15 +203,15 @@ export default function PredictPage() {
   } | null>(null);
   const [imageURLs, setImageURLs] = useState<string[]>([]);
 
-  const simplifiedNames: { [key: string]: string } = {
-    "Large.cell.carcinoma Left.hilum T2 N2 M0 IIIa": "Large Cell Carcinoma",
-    "Squamous.cell.carcinoma Left.hilum T1 N2 M0 IIIa":
-      "Squamous Cell Carcinoma",
-    "Adenocarcinoma Left.lower.lobe T2 N0 M0 Ib": "Adenocarcinoma",
-    "Malignant cases": "Malignant",
-    "Bengin cases": "Benign",
-    Normal: "Normal",
-  };
+  // const simplifiedNames: { [key: string]: string } = {
+  //   "Large.cell.carcinoma Left.hilum T2 N2 M0 IIIa": "Large Cell Carcinoma",
+  //   "Squamous.cell.carcinoma Left.hilum T1 N2 M0 IIIa":
+  //     "Squamous Cell Carcinoma",
+  //   "Adenocarcinoma Left.lower.lobe T2 N0 M0 Ib": "Adenocarcinoma",
+  //   "Malignant cases": "Malignant",
+  //   "Bengin cases": "Benign",
+  //   Normal: "Normal",
+  // };
 
   const formatClassName = (className: string | undefined) => {
     if (!className) return "";
